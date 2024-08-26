@@ -105,7 +105,7 @@ function App() {
 
 	return (
 		<div className='app-container'>
-			<h1>Brie fly</h1>
+			<h1>SmartEdu</h1>
 			<div className='custom-file-upload'>
 				<label htmlFor='file-input' className='upload-btn'>
 					Choose File
