@@ -2,49 +2,56 @@ import axios from 'axios'
 import { useState } from 'react'
 import './App.css'
 
+const apiToken =
+	'APY0fyXxz76lfb2Js5CRdzH5qvb552QfkbbI0XvBZTCIUW3mGE9bDn8Vhk0gkjewsM'
+
 function App() {
 	const [file, setFile] = useState(null)
+	const [fileName, setFileName] = useState('')
 	const [audioUrl, setAudioUrl] = useState(null)
 	const [transcribedText, setTranscribedText] = useState('')
+	const [summary, setSummary] = useState('')
+	const [timeCodes, setTimeCodes] = useState('')
+	const [videoUrl, setVideoUrl] = useState(null)
 
 	const handleFileChange = event => {
-		setFile(event.target.files[0])
+		const selectedFile = event.target.files[0]
+		setFile(selectedFile)
+		setFileName(selectedFile.name) // Set the file name
 	}
 
-	const test = async () => {
+	const processVideo = async () => {
 		if (!file) {
 			alert('Please select a file first!')
 			return
 		}
 
-		const formData = new FormData()
-		formData.append('video', file)
-		formData.append('output_format', 'wav')
-		formData.append('duration', '500')
-
 		try {
-			// Extract audio from video file
-			const response = await axios.post(
+			// Step 1: Extract audio from the video
+			const formData = new FormData()
+			formData.append('video', file)
+			formData.append('output_format', 'wav')
+			formData.append('duration', '120')
+
+			const audioResponse = await axios.post(
 				'https://api.apyhub.com/extract/video/audio/file?output=test-sample',
 				formData,
 				{
 					headers: {
-						'apy-token':
-							'APY0j2EPbzohrEQTqv5gQDKlAocKnu7aa51ausNkGMWD3Zu3nLJiQ3Yz73vvoJk7X1MjvTy8W',
+						'apy-token': apiToken,
 						'Content-Type': 'multipart/form-data',
 					},
 					responseType: 'blob',
 				}
 			)
 
-			// Create a blob from the audio data
-			const audioBlob = new Blob([response.data], { type: 'audio/wav' })
+			const audioBlob = new Blob([audioResponse.data], { type: 'audio/wav' })
 			const audioUrl = URL.createObjectURL(audioBlob)
 			setAudioUrl(audioUrl)
 
-			// Send the .wav file to the speech-to-text API
+			// Step 2: Transcribe the audio to text
 			const sttFormData = new FormData()
-			sttFormData.append('file', audioBlob, 'audio.wav') // Appending with the filename 'audio.wav'
+			sttFormData.append('file', audioBlob, 'audio.wav')
 			sttFormData.append('language', 'en-US')
 
 			const sttResponse = await axios.post(
@@ -52,29 +59,71 @@ function App() {
 				sttFormData,
 				{
 					headers: {
-						'apy-token':
-							'APY0j2EPbzohrEQTqv5gQDKlAocKnu7aa51ausNkGMWD3Zu3nLJiQ3Yz73vvoJk7X1MjvTy8W',
+						'apy-token': apiToken,
 						'Content-Type': 'multipart/form-data',
 					},
 				}
 			)
-
-			// Get the transcribed text from the response
-			console.log('sttResponse', sttResponse)
 			setTranscribedText(sttResponse.data.data)
+
+			// Step 3: Generate summary of the transcribed text
+			const summaryResponse = await axios.post(
+				'https://api.apyhub.com/sharpapi/api/v1/content/summarize',
+				{
+					content: sttResponse.data.data,
+					max_length: '250',
+					language: 'English',
+				},
+				{
+					headers: {
+						'apy-token': apiToken,
+						'Content-Type': 'application/json',
+					},
+				}
+			)
+
+			const jobId = summaryResponse.data.job_id
+
+			await new Promise(resolve => setTimeout(resolve, 7000))
+
+			const textResponse = await axios.get(
+				`https://api.apyhub.com/sharpapi/api/v1/content/summarize/job/status/${jobId}`,
+				{
+					headers: {
+						'apy-token': apiToken,
+						'Content-Type': 'application/json',
+					},
+				}
+			)
+
+			console.log('textResponse', textResponse)
+			setSummary(textResponse.data?.data?.attributes?.result?.summary)
 		} catch (error) {
 			console.error('Error:', error)
 		}
 	}
 
 	return (
-		<div>
-			<input type='file' onChange={handleFileChange} />
-			<button onClick={test}>Test</button>
+		<div className='app-container'>
+			<h1>Brie fly</h1>
+			<div className='custom-file-upload'>
+				<label htmlFor='file-input' className='upload-btn'>
+					Choose File
+				</label>
+				<input id='file-input' type='file' onChange={handleFileChange} />
+			</div>
+			<button onClick={processVideo}>Upload</button>
+
+			{fileName && (
+				<div className='file-info'>
+					<h3 className='headingInfo'>Uploaded File:</h3>
+					<p className='infoText'>{fileName}</p>
+				</div>
+			)}
 
 			{audioUrl && (
-				<div>
-					<h3>Audio Preview:</h3>
+				<div className='audio-container'>
+					<h3 className='headingInfo'>Audio</h3>
 					<audio controls>
 						<source src={audioUrl} type='audio/wav' />
 						Your browser does not support the audio element.
@@ -82,10 +131,27 @@ function App() {
 				</div>
 			)}
 
-			{transcribedText && (
-				<div>
-					<h3>Transcribed Text:</h3>
-					<p>{transcribedText}</p>
+			{videoUrl && (
+				<div className='video-container'>
+					<h3>Generated Video:</h3>
+					<video width='400' height='300' controls>
+						<source src={videoUrl} type='video/mp4' />
+						Your browser does not support the video tag.
+					</video>
+				</div>
+			)}
+
+			{/* {transcribedText && (
+				<div className='text-container'>
+					<h3 className='headingInfo'>Transcribed Text:</h3>
+					<p className='infoText'>{transcribedText}</p>
+				</div>
+			)} */}
+
+			{summary && (
+				<div className='text-container'>
+					<h3 className='headingInfo'>Summary:</h3>
+					<p className='infoText'>{summary}</p>
 				</div>
 			)}
 		</div>

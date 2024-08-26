@@ -4,3 +4,11 @@
 	box-sizing: border-box;
 	font-family: 'calibri';
 }
+
+html {
+	font-size: 10px;
+}
+
+p {
+	font-size: 2rem;
+}
